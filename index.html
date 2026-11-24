@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>watch</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="c" role="img" aria-label="한 시간에 걸쳐 천천히 차오르는 물"></canvas>
+<script>
+(function(){
+  var T = 60, N = 3600 / T;        // 1분에 한 방울, 60방울 = 1시간
+  var HOLD = 3;                    // 가득 찬 뒤 물이 빠지기 전까지 유지하는 시간(초)
+  var CYCLE = 3600 + HOLD;
+  var startAt = Date.now();        // 페이지를 연(새로고침한) 시각이 기준
+  var cs = getComputedStyle(document.documentElement);
+  var PAL = [1,2,3,4,5,6].map(function(n){
+  var h = cs.getPropertyValue('--drop-' + n).trim().replace('#','');
+  if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+  });
+  var cache = {};
+  function colorOf(id){
+    if (!(id in cache)) cache[id] = PAL[Math.floor(Math.random() * PAL.length)];
+    return cache[id];}
+  function css(c){ return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')'; }
+  var cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  var W, H, dpr, R;
+  var disp = 0, lastKey = -1, ripple = 0, lastT = performance.now();
+  var wc = colorOf(0).slice(), wt = colorOf(0).slice();   // 물 색(현재, 목표)
+
+  function resize(){
+    dpr = window.devicePixelRatio || 1;
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    R = Math.max(9, Math.min(W, H) * 0.025);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function drawWater(t, surfY){
+    var cx = W / 2, amp = 4 * ripple;
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (var x = 0; x <= W + 6; x += 6){
+      var d = Math.abs(x - cx);
+      var y = surfY + amp * Math.sin(d * 0.045 - t * 0.007) * Math.exp(-d * 0.0035);
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W, H); ctx.closePath();
+    ctx.fillStyle = css(wc); ctx.fill();
+  }
+
+  function drawDrop(p, surfY, color){
+    var x = W / 2, lip = 5, formEnd = 0.99;
+    ctx.fillStyle = css(color);
+    if (p < formEnd){
+      var q = p / formEnd, ease = q * q * (3 - 2 * q);
+      var r = lip + (R - lip) * ease;
+      var neck = Math.pow(q, 2.6) * R * 1.6;
+      var cy = neck + r;
+      ctx.beginPath();
+      ctx.moveTo(x - lip, 0);
+      ctx.bezierCurveTo(x - lip, neck * 0.7, x - r * 0.95, neck + r * 0.15, x - r, cy);
+      ctx.bezierCurveTo(x - r, cy + r * 0.55, x - r * 0.45, cy + r, x, cy + r);
+      ctx.bezierCurveTo(x + r * 0.45, cy + r, x + r, cy + r * 0.55, x + r, cy);
+      ctx.bezierCurveTo(x + r * 0.95, neck + r * 0.15, x + lip, neck * 0.7, x + lip, 0);
+      ctx.closePath(); ctx.fill();
+    } else {
+      var cy0 = R * 2.6;
+      var u = (p - formEnd) / (1 - formEnd);
+      var dist = Math.max(0, surfY - R - cy0);
+      ctx.beginPath();
+      ctx.ellipse(x, cy0 + dist * u * u, R, R * (1 + 0.25 * u), 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function frame(now){
+    var dt = Math.min(64, now - lastT) / 16.667; lastT = now;
+    var t = (Date.now() - startAt) / 1000;
+    var cyc = Math.floor(t / CYCLE), local = t % CYCLE;
+    var idx = Math.min(N, Math.floor(local / T));              // 지금까지 쌓인 방울 수 (N이면 가득 참)
+    var p = local < 3600 ? (local % T) / T : 0;                // 현재 방울의 진행도
+    var key = cyc * (N + 1) + idx;
+
+    if (key !== lastKey){
+      if (lastKey !== -1 && idx >= 1){                         // 방울이 닿은 순간
+        ripple = 1;
+        wt = colorOf(cyc * N + idx - 1);                       // 물 색이 닿은 방울의 색으로
+      }
+      lastKey = key;
+    }
+
+    var target = idx / N;
+    disp += (target - disp) * (1 - Math.pow(target >= disp ? 0.93 : 0.97, dt));
+    ripple *= Math.pow(0.985, dt);
+    var k = 1 - Math.pow(0.92, dt);
+    for (var i = 0; i < 3; i++) wc[i] += (wt[i] - wc[i]) * k;
+
+    ctx.clearRect(0, 0, W, H);
+    var surfY = H - disp * H;
+    drawWater(now, surfY);
+    if (idx < N) drawDrop(p, surfY, colorOf(cyc * N + idx));
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

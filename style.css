@@ -1,0 +1,24 @@
+:root {
+  --bg: #ebedee;
+  color-scheme: light;
+  --drop-1: hsl(186, 73%, 76%);
+  --drop-2: #699de7;
+  --drop-3: #6ccbee;
+  --drop-4: #2ebec8;
+  --drop-5: #88a4e6;
+  --drop-6: #69AAEB;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
