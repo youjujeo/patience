@@ -27,7 +27,7 @@
   function css(c){ return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')'; }
   var cv = document.getElementById('c'), ctx = cv.getContext('2d');
   var W, H, dpr, R;
-  var disp = 0, landedCount = 0, ripple = 0, lastT = performance.now();
+  var disp = 0, ripple = 0, lastLandedDrop = -1, lastT = performance.now();
   var frameId = null;
   var wc = colorOf(0).slice(), wt = colorOf(0).slice();   // 물 색(현재, 목표)
 
@@ -79,6 +79,22 @@
     }
   }
 
+  function dropTouchesWater(p, surfY, t){
+    var formEnd = 0.99, bottom;
+    if (p < formEnd){
+      var q = p / formEnd, ease = q * q * (3 - 2 * q);
+      var r = 5 + (R - 5) * ease;
+      bottom = Math.pow(q, 2.6) * R * 1.6 + 2 * r;
+    } else {
+      var u = (p - formEnd) / (1 - formEnd);
+      var cy0 = R * 2.6;
+      var dist = Math.max(0, surfY - R - cy0);
+      bottom = cy0 + dist * u * u + R * (1 + 0.25 * u);
+    }
+    var surface = surfY + 4 * ripple * Math.sin(-t * 0.007);
+    return bottom >= surface;
+  }
+
   function frame(now){
     frameId = null;
     var dt = Math.min(64, now - lastT) / 16.667; lastT = now;
@@ -86,24 +102,26 @@
     var cyc = Math.floor(t / CYCLE), local = t % CYCLE;
     var idx = Math.min(N, Math.floor(local / T));              // 지금까지 쌓인 방울 수 (N이면 가득 참)
     var p = local < 3600 ? (local % T) / T : 0;                // 현재 방울의 진행도
-    var landed = cyc * N + idx;
-    if (landed > landedCount){
-      landedCount = landed;
-      ripple = 1;
-      wt = colorOf(landed - 1);                               // 방울이 수면에 닿을 때만 물 색 변경
-    }
 
     var target = idx / N;
     disp += (target - disp) * (1 - Math.pow(target >= disp ? 0.93 : 0.97, dt));
     if (target === 1 && 1 - disp < 0.001) disp = 1;
     ripple *= Math.pow(0.985, dt);
+    var surfY = H - disp * H;
+    var dropId = cyc * N + idx;
+    var dropLanded = idx < N && dropId === lastLandedDrop;
+    if (idx < N && !dropLanded && dropTouchesWater(p, surfY, now)){
+      lastLandedDrop = dropId;
+      dropLanded = true;
+      ripple = 1;
+      wt = colorOf(dropId);                                   // 실제 수면에 닿을 때만 물 색 변경
+    }
     var k = 1 - Math.pow(0.92, dt);
     for (var i = 0; i < 3; i++) wc[i] += (wt[i] - wc[i]) * k;
 
     ctx.clearRect(0, 0, W, H);
-    var surfY = H - disp * H;
     drawWater(now, surfY);
-    if (idx < N) drawDrop(p, surfY, colorOf(cyc * N + idx));
+    if (idx < N && !dropLanded) drawDrop(p, surfY, colorOf(dropId));
     frameId = requestAnimationFrame(frame);
   }
   document.addEventListener('visibilitychange', function(){
