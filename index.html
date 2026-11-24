@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>watch</title>
+    <title>clock</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <canvas id="c" role="img" aria-label="한 시간에 걸쳐 천천히 차오르는 물"></canvas>
 <script>
 (function(){
-  var T = 60, N = 3600 / T;        // 1분에 한 방울, 60방울 = 1시간
+  var T = 60, N = 3600 / T;        // 1분에 한 방울
   var HOLD = 3;                    // 가득 찬 뒤 물이 빠지기 전까지 유지하는 시간(초)
   var CYCLE = 3600 + HOLD;
   var startAt = Date.now();        // 페이지를 연(새로고침한) 시각이 기준
@@ -27,7 +27,8 @@
   function css(c){ return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')'; }
   var cv = document.getElementById('c'), ctx = cv.getContext('2d');
   var W, H, dpr, R;
-  var disp = 0, lastKey = -1, ripple = 0, lastT = performance.now();
+  var disp = 0, landedCount = 0, ripple = 0, lastT = performance.now();
+  var frameId = null;
   var wc = colorOf(0).slice(), wt = colorOf(0).slice();   // 물 색(현재, 목표)
 
   function resize(){
@@ -79,23 +80,22 @@
   }
 
   function frame(now){
+    frameId = null;
     var dt = Math.min(64, now - lastT) / 16.667; lastT = now;
     var t = (Date.now() - startAt) / 1000;
     var cyc = Math.floor(t / CYCLE), local = t % CYCLE;
     var idx = Math.min(N, Math.floor(local / T));              // 지금까지 쌓인 방울 수 (N이면 가득 참)
     var p = local < 3600 ? (local % T) / T : 0;                // 현재 방울의 진행도
-    var key = cyc * (N + 1) + idx;
-
-    if (key !== lastKey){
-      if (lastKey !== -1 && idx >= 1){                         // 방울이 닿은 순간
-        ripple = 1;
-        wt = colorOf(cyc * N + idx - 1);                       // 물 색이 닿은 방울의 색으로
-      }
-      lastKey = key;
+    var landed = cyc * N + idx;
+    if (landed > landedCount){
+      landedCount = landed;
+      ripple = 1;
+      wt = colorOf(landed - 1);                               // 방울이 수면에 닿을 때만 물 색 변경
     }
 
     var target = idx / N;
     disp += (target - disp) * (1 - Math.pow(target >= disp ? 0.93 : 0.97, dt));
+    if (target === 1 && 1 - disp < 0.001) disp = 1;
     ripple *= Math.pow(0.985, dt);
     var k = 1 - Math.pow(0.92, dt);
     for (var i = 0; i < 3; i++) wc[i] += (wt[i] - wc[i]) * k;
@@ -104,9 +104,16 @@
     var surfY = H - disp * H;
     drawWater(now, surfY);
     if (idx < N) drawDrop(p, surfY, colorOf(cyc * N + idx));
-    requestAnimationFrame(frame);
+    frameId = requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden){
+      if (frameId !== null) cancelAnimationFrame(frameId);
+      lastT = performance.now();
+      frameId = requestAnimationFrame(frame);
+    }
+  });
+  frameId = requestAnimationFrame(frame);
 })();
 </script>
 </body>
