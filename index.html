@@ -11,6 +11,7 @@
 <script>
 (function(){
   var T = 60, N = 3600 / T;        // 1분에 한 방울
+  var MAX_FILL = 0.8;              // 화면을 완전히 채우지 않아 마지막 방울도 보이게
   var HOLD = 3;                    // 가득 찬 뒤 물이 빠지기 전까지 유지하는 시간(초)
   var CYCLE = 3600 + HOLD;
   var startAt = Date.now();        // 페이지를 연(새로고침한) 시각이 기준
@@ -92,9 +93,9 @@
     var idx = Math.min(N, Math.floor(local / T));              // 지금까지 쌓인 방울 수 (N이면 가득 참)
     var p = local < 3600 ? (local % T) / T : 0;                // 현재 방울의 진행도
 
-    var target = idx / N;
+    var target = idx / N * MAX_FILL;
     disp += (target - disp) * (1 - Math.pow(target >= disp ? 0.93 : 0.97, dt));
-    if (target === 1 && 1 - disp < 0.001) disp = 1;
+    if (target === MAX_FILL && MAX_FILL - disp < 0.001) disp = MAX_FILL;
     ripple *= Math.pow(0.985, dt);
     var surfY = H - disp * H;
     var landed = cyc * N + idx;
